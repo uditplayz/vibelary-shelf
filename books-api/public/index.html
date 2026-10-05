@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bookshelf</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&family=Work+Sans:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --page: #F3F5F7;
+            --sheet: #FFFFFF;
+            --ink: #1B2430;
+            --muted: #5F6B7A;
+            --line: #DCE1E7;
+            --green: #2D6A4F;
+            --red: #B23A3A;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--page);
+            color: var(--ink);
+            font: 16px/1.55 "Work Sans", system-ui, sans-serif;
+        }
+        main { max-width: 640px; margin: 0 auto; padding: 48px 20px 64px; }
+        h1 {
+            font-family: "Literata", Georgia, serif;
+            font-weight: 600;
+            font-size: 2.6rem;
+            line-height: 1.1;
+            margin: 0 0 6px;
+        }
+        .sub { color: var(--muted); margin: 0 0 32px; }
+
+        form {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        input {
+            font: inherit;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--sheet);
+            color: var(--ink);
+            min-width: 0;
+        }
+        button {
+            font: inherit;
+            font-weight: 500;
+            padding: 10px 16px;
+            border: 0;
+            border-radius: 6px;
+            background: var(--green);
+            color: #fff;
+            cursor: pointer;
+        }
+        button.ghost { background: transparent; color: var(--muted); padding: 6px 10px; }
+        button.ghost:hover { color: var(--ink); }
+        button.danger:hover { color: var(--red); }
+        input:focus-visible, button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+        .msg { min-height: 1.5em; font-size: 0.9rem; color: var(--red); margin: 0 0 20px; }
+
+        /* Each book looks like a spine on a shelf */
+        ul { list-style: none; padding: 0; margin: 0; }
+        li {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: var(--sheet);
+            border: 1px solid var(--line);
+            border-left: 8px solid var(--spine, var(--green));
+            border-radius: 4px;
+            padding: 14px 12px 14px 16px;
+            margin-bottom: 10px;
+        }
+        .info { flex: 1; min-width: 0; }
+        .title { font-family: "Literata", Georgia, serif; font-size: 1.15rem; font-weight: 600; }
+        .author { color: var(--muted); font-size: 0.95rem; }
+        .empty { color: var(--muted); padding: 24px 0; }
+
+        @media (max-width: 520px) {
+            form { grid-template-columns: 1fr; }
+            h1 { font-size: 2.1rem; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Udit's Vibelary Bookshelf</h1>
+    <p class="sub">Add, edit and remove books. Everything here talks to the REST API.</p>
+
+    <form id="bookForm">
+        <input id="title" placeholder="Title" aria-label="Title" required />
+        <input id="author" placeholder="Author" aria-label="Author" required />
+        <button type="submit" id="submitBtn">Add book</button>
+    </form>
+    <p class="msg" id="msg" role="status"></p>
+
+    <ul id="list"></ul>
+</main>
+
+<script>
+    const API = '/books'; // same server, so a relative URL works locally and when deployed
+    const spines = ['#2D6A4F', '#3A5A8C', '#8C4A3A', '#6B5B95', '#A07C2C', '#2F7C83'];
+
+    const form = document.getElementById('bookForm');
+    const titleInput = document.getElementById('title');
+    const authorInput = document.getElementById('author');
+    const submitBtn = document.getElementById('submitBtn');
+    const list = document.getElementById('list');
+    const msg = document.getElementById('msg');
+
+    let editingId = null;
+
+    function showError(text) { msg.textContent = text || ''; }
+
+    async function loadBooks() {
+        try {
+            const res = await fetch(API);
+            const books = await res.json();
+            render(books);
+        } catch {
+            showError('Could not reach the server. Is it running?');
+        }
+    }
+
+    function render(books) {
+        list.innerHTML = '';
+        if (books.length === 0) {
+            list.innerHTML = '<li class="empty" style="border:0;background:none">No books yet. Add your first one above.</li>';
+            return;
+        }
+        books.forEach(book => {
+            const li = document.createElement('li');
+            li.style.setProperty('--spine', spines[book.id % spines.length]);
+            li.innerHTML = `
+          <div class="info">
+            <div class="title"></div>
+            <div class="author"></div>
+          </div>
+          <button class="ghost" data-action="edit">Edit</button>
+          <button class="ghost danger" data-action="delete">Delete</button>
+        `;
+            // textContent prevents HTML injection from book data
+            li.querySelector('.title').textContent = book.title;
+            li.querySelector('.author').textContent = book.author;
+            li.querySelector('[data-action="edit"]').onclick = () => startEdit(book);
+            li.querySelector('[data-action="delete"]').onclick = () => deleteBook(book.id);
+            list.appendChild(li);
+        });
+    }
+
+    function startEdit(book) {
+        editingId = book.id;
+        titleInput.value = book.title;
+        authorInput.value = book.author;
+        submitBtn.textContent = 'Save changes';
+        titleInput.focus();
+    }
+
+    function resetForm() {
+        editingId = null;
+        form.reset();
+        submitBtn.textContent = 'Add book';
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        showError('');
+        const body = { title: titleInput.value, author: authorInput.value };
+        const url = editingId ? `${API}/${editingId}` : API;
+        const method = editingId ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                return showError(data.error);
+            }
+            resetForm();
+            loadBooks();
+        } catch {
+            showError('Could not reach the server. Is it running?');
+        }
+    });
+
+    async function deleteBook(id) {
+        if (!confirm('Delete this book?')) return;
+        const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
+        if (res.status !== 204) {
+            const data = await res.json();
+            return showError(data.error);
+        }
+        if (editingId === id) resetForm();
+        loadBooks();
+    }
+
+    loadBooks();
+</script>
+</body>
+</html>
