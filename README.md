@@ -2,7 +2,7 @@
 
 A simple REST API for managing books, built with Node.js and Express. It includes a small frontend to add, edit and delete books from the browser.
 
-**Live demo:** `[https://your-app.onrender.com](https://vibelary-shelf.onrender.com)` 
+**Live demo:** [https://vibelary-shelf.onrender.com](https://vibelary-shelf.onrender.com)
 
 ![Frontend](screenshots/frontend.png)
 
